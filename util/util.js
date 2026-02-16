@@ -1,6 +1,6 @@
 import fs from "fs";
-import { Jimp } from "jimp";
-
+import Jimp from "jimp";
+import path from "path";
 
 // filterImageFromURL
 // helper function to download, filter, and save the filtered image locally
@@ -9,23 +9,39 @@ import { Jimp } from "jimp";
 //    inputURL: string - a publicly accessible url to an image file
 // RETURNS
 //    an absolute path to a filtered image locally saved file
- export async function filterImageFromURL(inputURL) {
-  return new Promise(async (resolve, reject) => {
-    try {
-      const photo = await Jimp.read(inputURL);
-      const outpath =
-        "/tmp/filtered." + Math.floor(Math.random() * 2000) + ".jpg";
-      await photo
-        .resize(256, 256) // resize
-        .quality(60) // set JPEG quality
-        .greyscale() // set greyscale
-        .write(outpath, (img) => {
-          resolve(outpath);
-        });
-    } catch (error) {
-      reject(error);
-    }
-  });
+export async function filterImageFromURL(inputURL) {
+  if (!inputURL || typeof inputURL !== "string") {
+    throw new Error("image_url missing or invalid");
+  }
+
+  // Descarga la imagen tú
+  const resp = await fetch(inputURL, { redirect: "follow" });
+  if (!resp.ok) {
+    throw new Error(`Upstream HTTP ${resp.status}`);
+  }
+
+  const ct = resp.headers.get("content-type") || "";
+  if (!ct.startsWith("image/")) {
+    throw new Error(`URL did not return an image. Content-Type: ${ct}`);
+  }
+
+  const arrayBuf = await resp.arrayBuffer();
+  const buf = Buffer.from(arrayBuf);
+
+  const photo = await Jimp.read(buf);
+
+  const outpath = path.join(
+    "/tmp",
+    `filtered.${Date.now()}.${Math.floor(Math.random() * 2000)}.jpg`
+  );
+
+  await photo
+    .resize(256, 256)
+    .quality(60)
+    .greyscale()
+    .writeAsync(outpath);
+
+  return outpath;
 }
 
 // deleteLocalFiles

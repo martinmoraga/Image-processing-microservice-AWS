@@ -1,5 +1,6 @@
 import express from 'express';
 import bodyParser from 'body-parser';
+import fs from "fs";
 import {filterImageFromURL, deleteLocalFiles} from './util/util.js';
 
 
@@ -8,7 +9,7 @@ import {filterImageFromURL, deleteLocalFiles} from './util/util.js';
   const app = express();
 
   // Set the network port
-  const port = process.env.PORT || 8082;
+  const port = process.env.PORT || 8080;
   
   // Use the body parser middleware for post requests
   app.use(bodyParser.json());
@@ -28,22 +29,27 @@ import {filterImageFromURL, deleteLocalFiles} from './util/util.js';
     let filteredPath;
   
     try {
-      // 1. llamar al helper
       filteredPath = await filterImageFromURL(image_url);
   
-      // 2. borrar archivo cuando termine la respuesta
       res.on("finish", () => {
-        if (filteredPath) {
-          deleteLocalFiles([filteredPath]);
+        try {
+          fs.unlinkSync(filteredPath);
+        } catch (err) {
+          if (err.code !== "ENOENT") {
+            console.error("Error deleting file:", err);
+          }
         }
       });
   
-      // 3. enviar archivo
+      res.set("Content-Type", "image/jpeg");
+      res.set("Content-Disposition", 'inline; filename="filtered.jpg"');
       return res.status(200).sendFile(filteredPath);
-  
     } catch (error) {
-      console.error("Filter error:", error);
-      return res.status(422).send("Unable to process image_url");
+      console.error("Jimp/read error:", error);
+    
+      return res.status(422).json({
+        message: "Unable to process image_url"
+      });
     }
   });
 
